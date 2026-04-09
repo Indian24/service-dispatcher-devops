@@ -1,141 +1,156 @@
 # Technician Dispatch & Service Tracking System
 
-> A production-ready field service management platform built as a **DevOps Trainee portfolio project**.  
-> Demonstrates CI/CD pipelines, Docker containerization, cloud deployment readiness, role-based access control, and full-stack development.
+A real-world field service management platform for a water purifier company — built as a **DevOps Trainee portfolio project**.
+
+It demonstrates CI/CD, Docker, deployment readiness, JWT authentication, and role-based access control using a clean production-style stack.
 
 ---
 
-## DevOps Portfolio Summary
+## DevOps Portfolio Highlights
 
-This project was designed to show **real DevOps engineering skills** in a practical context:
-
-| Skill | Implementation |
-|-------|---------------|
-| **CI/CD** | GitHub Actions pipeline with typecheck → build → Docker → deploy stages |
-| **Docker** | Multi-stage Dockerfile (build vs runtime separation), docker-compose for local orchestration |
-| **Cloud Ready** | Environment variable configuration, stateless API design, Render/Railway deployment support |
-| **Process Orientation** | Role-based access control, structured logging (pino), health check endpoint |
-| **Troubleshooting** | Structured JSON logs in production, centralized error handling, request correlation IDs |
-| **Infrastructure as Code** | docker-compose.yml defines the full stack: DB + API + Frontend |
-| **Secret Management** | Environment variables for all credentials, no hardcoded secrets |
-| **Database Migrations** | Drizzle ORM schema-as-code with push-based migration workflow |
+| Area | What This Project Shows |
+|------|------------------------|
+| **CI/CD** | GitHub Actions: install → build → Docker image → deploy |
+| **Docker** | Multi-stage Dockerfile, docker-compose for full stack |
+| **Cloud Deploy** | Render / Railway deployment steps with env var config |
+| **Monitoring** | `/api/health` endpoint, structured request logging |
+| **Security** | JWT auth, bcrypt passwords, role-based access control |
+| **Process** | OpenAPI contract, code generation, monorepo structure |
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, Vite, TailwindCSS, shadcn/ui, React Query, Wouter |
-| Backend | Node.js 24, Express 5, TypeScript |
-| Database | PostgreSQL 16 with Drizzle ORM |
-| Auth | JWT-based (jsonwebtoken + bcryptjs) |
-| API Contract | OpenAPI 3.1 → code generation (Orval) |
-| Containerization | Docker + docker-compose |
-| CI/CD | GitHub Actions |
-| Package Manager | pnpm (workspaces monorepo) |
-
----
-
-## Application Features
-
-### Role-Based Access
-
-Three distinct user roles with isolated dashboards:
-
-| Role | Capabilities |
-|------|-------------|
-| **Customer** | Register, raise service requests, track status, view assigned technician |
-| **Technician** | View assigned jobs, update status (pending → in_progress → completed), add service notes |
-| **Admin** | Full dashboard, assign technicians, manage all requests, view all users |
-
-### Service Workflow
+## Project Architecture
 
 ```
-Customer raises request → Admin assigns technician → Technician updates status → Completed
-   [PENDING]               [ASSIGNED]                  [IN_PROGRESS]           [COMPLETED]
+┌─────────────────────────────────────────────────┐
+│                   Browser                        │
+│           React + Vite + TailwindCSS             │
+│         (Customer / Technician / Admin)          │
+└──────────────────────┬──────────────────────────┘
+                       │  HTTPS / REST API calls
+┌──────────────────────▼──────────────────────────┐
+│              Node.js + Express API               │
+│   JWT Auth  │  Role Middleware  │  REST Routes   │
+│   /api/auth │  /api/service-requests  │  /api/dashboard │
+└──────────────────────┬──────────────────────────┘
+                       │  SQL (Drizzle ORM)
+┌──────────────────────▼──────────────────────────┐
+│              PostgreSQL Database                 │
+│         users  │  service_requests               │
+└─────────────────────────────────────────────────┘
 ```
 
-### Service Types
-- Installation
-- Repair
-- Maintenance
-- AMC (Annual Maintenance Contract)
-- Inspection
+**Three user roles** with separate dashboards:
+- **Customer** — raises service requests, tracks status
+- **Technician** — views assigned jobs, updates status + notes
+- **Admin** — assigns technicians, manages all requests and users
 
 ---
 
-## Project Structure
+## CI/CD Flow (GitHub Actions)
 
 ```
-.
-├── artifacts/
-│   ├── api-server/          # Express API server
-│   │   └── src/
-│   │       ├── routes/      # REST API route handlers
-│   │       ├── middlewares/ # JWT auth middleware
-│   │       └── lib/         # Logger and utilities
-│   └── dispatch-app/        # React + Vite frontend
-│       └── src/
-│           ├── pages/       # Admin / Technician / Customer pages
-│           ├── components/  # Reusable UI components
-│           └── lib/         # Auth context, utilities
-├── lib/
-│   ├── db/                  # Drizzle ORM schema and client
-│   ├── api-spec/            # OpenAPI 3.1 specification
-│   ├── api-client-react/    # Generated React Query hooks
-│   └── api-zod/             # Generated Zod validation schemas
-├── .github/workflows/       # GitHub Actions CI/CD
-├── Dockerfile               # Multi-stage Docker build
-├── docker-compose.yml       # Full stack local orchestration
-└── nginx.conf               # Nginx config for frontend serving
+git push to main
+       │
+       ▼
+┌─────────────────────────────┐
+│  1. Install dependencies    │  pnpm install --frozen-lockfile
+│  2. Build API server        │  pnpm --filter api-server run build
+│  3. Build frontend          │  pnpm --filter dispatch-app run build
+│  4. Build Docker images     │  docker build (API + Frontend)
+└──────────────┬──────────────┘
+               │  (main branch only)
+               ▼
+┌──────────────────────────────┐
+│  5. Deploy to Render         │  curl RENDER_DEPLOY_HOOK_URL
+└──────────────────────────────┘
+```
+
+Workflow file: `.github/workflows/ci.yml`
+
+To enable auto-deploy, add your **Render deploy hook URL** as a GitHub repository secret:  
+`Settings → Secrets → RENDER_DEPLOY_HOOK_URL`
+
+---
+
+## How Docker Is Used
+
+The project uses a **multi-stage Dockerfile** — build tools stay out of the production image, keeping it small and secure.
+
+```
+Dockerfile stages:
+  base         → Node.js + pnpm setup
+  deps         → Install all dependencies
+  builder-api  → Compile TypeScript API to JS bundle
+  builder-frontend → Vite build (static HTML/CSS/JS)
+  production-api     → Lean runtime image (no devDeps)
+  production-frontend → Nginx serving static files
+```
+
+The `docker-compose.yml` wires everything together locally:
+
+```
+db        → PostgreSQL 16 (persistent volume)
+api       → Express API server (connects to db)
+frontend  → Nginx serving React app + proxies /api → api
 ```
 
 ---
 
-## Local Development Setup
+## Run Locally with Docker Compose
+
+```bash
+# Clone the repo
+git clone <your-repo-url>
+cd technician-dispatch
+
+# Start everything — DB, API, and Frontend
+docker-compose up --build
+
+# Open the app
+open http://localhost
+```
+
+That's it. No separate setup needed — Docker Compose handles the database, API server, and frontend automatically.
+
+To stop:
+```bash
+docker-compose down
+```
+
+To reset the database:
+```bash
+docker-compose down -v   # removes the volume too
+```
+
+---
+
+## Run Locally Without Docker
 
 ### Prerequisites
 - Node.js 24+
-- pnpm 10+ (`npm install -g pnpm`)
-- PostgreSQL 16+ (or use Docker)
+- pnpm (`npm install -g pnpm`)
+- PostgreSQL running locally
 
-### 1. Clone and install
+### Steps
+
 ```bash
-git clone <your-repo-url>
-cd technician-dispatch
+# Install dependencies
 pnpm install
-```
 
-### 2. Environment variables
-Create a `.env` file (or export to shell):
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/dispatch_db
-SESSION_SECRET=your-long-random-secret-here
-PORT=8080
-NODE_ENV=development
-```
+# Set environment variables
+export DATABASE_URL=postgresql://user:password@localhost:5432/dispatch_db
+export SESSION_SECRET=any-long-random-string
+export NODE_ENV=development
 
-### 3. Database setup
-```bash
-# Push schema to database
+# Push DB schema
 pnpm --filter @workspace/db run push
 
-# Seed sample data
-pnpm --filter @workspace/scripts run seed
-```
-
-### 4. Start the API server
-```bash
+# Start API server (port 8080)
 pnpm --filter @workspace/api-server run dev
-```
 
-### 5. Start the frontend
-```bash
-# Set required env vars
-export PORT=5173
-export BASE_PATH=/
-
+# Start frontend (new terminal, port 5173)
+export PORT=5173 BASE_PATH=/
 pnpm --filter @workspace/dispatch-app run dev
 ```
 
@@ -143,132 +158,132 @@ Visit `http://localhost:5173`
 
 ---
 
-## Docker Deployment
-
-### Build and run with Docker Compose
-```bash
-# Start everything (DB + API + Frontend)
-docker-compose up --build
-
-# Run in background
-docker-compose up -d --build
-
-# Stop
-docker-compose down
-```
-
-Access at `http://localhost`
-
-### Build individual Docker images
-```bash
-# API server only
-docker build --target production-api -t dispatch-api .
-
-# Frontend only
-docker build --target production-frontend -t dispatch-frontend .
-```
-
----
-
-## CI/CD Pipeline (GitHub Actions)
-
-The pipeline in `.github/workflows/ci.yml` runs on every push/PR:
-
-```
-push to main/develop
-        │
-        ▼
-[Typecheck] TypeScript strict typecheck across all packages
-        │
-   ┌────┴────┐
-   ▼         ▼
-[Build API] [Build Frontend]
-   │         │
-   └────┬────┘
-        ▼
-[Docker Build] Build and validate both Docker images (main branch only)
-        │
-        ▼
-[Deploy to Render] Trigger deploy via webhook (main branch only)
-```
-
-### Setting up CI secrets
-Add these GitHub repository secrets:
-- `RENDER_DEPLOY_HOOK_URL` — Your Render deploy hook URL (optional)
-
----
-
 ## Deploy to Render (Free Tier)
 
-### Deploy API as a Web Service
-1. Go to [render.com](https://render.com) → New → Web Service
-2. Connect your GitHub repo
-3. Set build command: `pnpm install && pnpm --filter @workspace/api-server run build`
-4. Set start command: `node --enable-source-maps artifacts/api-server/dist/index.mjs`
-5. Add environment variables:
-   - `DATABASE_URL` — your PostgreSQL connection string
-   - `SESSION_SECRET` — a long random string
-   - `NODE_ENV` — `production`
-   - `PORT` — `8080`
-
-### Deploy PostgreSQL
+### Step 1 — PostgreSQL
 1. Render → New → PostgreSQL
-2. Copy the Internal Database URL to your API service's `DATABASE_URL`
+2. Copy the **Internal Database URL**
 
-### Deploy Frontend as Static Site
-1. Render → New → Static Site
-2. Build command: `pnpm install && pnpm --filter @workspace/dispatch-app run build`
+### Step 2 — API (Web Service)
+1. Render → New → Web Service → connect GitHub repo
+2. Build command:
+   ```
+   pnpm install && pnpm --filter @workspace/api-server run build
+   ```
+3. Start command:
+   ```
+   node --enable-source-maps artifacts/api-server/dist/index.mjs
+   ```
+4. Environment variables:
+   ```
+   DATABASE_URL  = <paste Internal Database URL from Step 1>
+   SESSION_SECRET = <any long random string>
+   NODE_ENV      = production
+   PORT          = 8080
+   ```
+
+### Step 3 — Frontend (Static Site)
+1. Render → New → Static Site → connect GitHub repo
+2. Build command:
+   ```
+   pnpm install && pnpm --filter @workspace/dispatch-app run build
+   ```
 3. Publish directory: `artifacts/dispatch-app/dist/public`
-4. Add environment variables:
-   - `BASE_PATH` — `/`
-   - `PORT` — `3000`
-   - `NODE_ENV` — `production`
+4. Environment variables:
+   ```
+   NODE_ENV = production
+   BASE_PATH = /
+   PORT = 3000
+   ```
 
-### Deploy to Railway
-1. `railway init` in project root
-2. `railway up`
-3. Set environment variables via Railway dashboard
+### Step 4 — Enable Auto-Deploy
+Copy the Render deploy hook URL → add as GitHub secret `RENDER_DEPLOY_HOOK_URL` → every push to `main` auto-deploys.
+
+---
+
+## Deploy to Railway
+
+```bash
+npm install -g @railway/cli
+railway login
+railway init
+railway up
+```
+
+Set env vars in the Railway dashboard. Railway auto-detects the Dockerfile.
+
+---
+
+## Health Check
+
+The API exposes a health check endpoint:
+
+```bash
+GET /api/health
+
+# Response:
+{ "status": "ok", "timestamp": "2026-04-09T12:00:00.000Z" }
+```
+
+Use this endpoint with:
+- **Docker** — `HEALTHCHECK` in Dockerfile
+- **Render** — Health check path setting
+- **Uptime monitors** — UptimeRobot, BetterStack, etc.
+
+---
+
+## Logging
+
+The API uses **structured request logging** (pino):
+
+```
+Development (human-readable):
+  POST /api/auth/login → 200 (12ms)
+  GET  /api/service-requests → 200 (8ms)
+
+Production (JSON, machine-readable):
+  {"level":30,"method":"GET","url":"/api/health","statusCode":200,"responseTime":3}
+```
+
+In production, logs are JSON so they can be ingested by tools like Datadog, CloudWatch, or Grafana Loki.
 
 ---
 
 ## API Endpoints
 
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login, returns JWT |
-| GET | `/api/auth/me` | Get current user |
+### Auth
+```
+POST /api/auth/register   Register new user
+POST /api/auth/login      Login → returns JWT
+GET  /api/auth/me         Get current user (requires token)
+```
 
 ### Service Requests
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/service-requests` | List (filtered by role) |
-| POST | `/api/service-requests` | Create new request (customer) |
-| GET | `/api/service-requests/:id` | Get single request |
-| PATCH | `/api/service-requests/:id` | Update status/notes |
-| POST | `/api/service-requests/:id/assign` | Assign technician (admin) |
+```
+GET    /api/service-requests        List (filtered by role)
+POST   /api/service-requests        Create request (customer only)
+GET    /api/service-requests/:id    Get details
+PATCH  /api/service-requests/:id    Update status/notes
+POST   /api/service-requests/:id/assign  Assign technician (admin)
+```
 
 ### Users & Technicians
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/users` | List all users (admin) |
-| GET | `/api/users/:id` | Get user by ID |
-| PATCH | `/api/users/:id` | Update user (admin) |
-| GET | `/api/technicians` | List technicians with job counts |
+```
+GET   /api/users           All users (admin only)
+GET   /api/technicians     Technicians with job counts
+PATCH /api/users/:id       Update user (admin only)
+```
 
 ### Dashboard
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/summary` | Summary counts |
-| GET | `/api/dashboard/recent-activity` | Recent requests |
-| GET | `/api/dashboard/status-breakdown` | Counts by status |
+```
+GET /api/dashboard/summary           Counts summary
+GET /api/dashboard/recent-activity   Last 10 updates
+GET /api/dashboard/status-breakdown  Count by status
+```
 
 ---
 
 ## Sample Login Credentials
-
-After running the seed script:
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -280,63 +295,15 @@ After running the seed script:
 
 ---
 
-## Database Schema
+## Tech Stack
 
-```sql
--- Users table
-users (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  role ENUM('customer', 'technician', 'admin') NOT NULL DEFAULT 'customer',
-  phone TEXT,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-)
-
--- Service requests table
-service_requests (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  service_type ENUM('installation', 'repair', 'maintenance', 'amc_service', 'inspection') NOT NULL,
-  status ENUM('pending', 'assigned', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'pending',
-  priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
-  customer_id INTEGER REFERENCES users(id) NOT NULL,
-  technician_id INTEGER REFERENCES users(id),
-  address TEXT NOT NULL,
-  technician_notes TEXT,
-  scheduled_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-)
-```
-
----
-
-## Health Check
-
-The API exposes a health check endpoint at `/api/healthz`.
-
-In production, configure your load balancer or platform to poll this endpoint:
-```bash
-curl https://your-api-domain.com/api/healthz
-# {"status":"ok"}
-```
-
----
-
-## Key Engineering Decisions
-
-1. **OpenAPI-First Development** — The API contract (`lib/api-spec/openapi.yaml`) is the single source of truth. Both React Query hooks and Zod validation schemas are code-generated from it, ensuring type safety end-to-end.
-
-2. **Monorepo with pnpm workspaces** — Shared types and database schema live in `lib/` packages, referenced by both API server and frontend without duplication.
-
-3. **Structured Logging** — pino logger with request correlation IDs, redacted auth headers, and JSON output in production. Makes debugging in production tractable.
-
-4. **Role-Based Middleware** — JWT auth + role checking is pure middleware, applied per-route. Easy to audit and extend.
-
-5. **Multi-stage Docker builds** — Build tools don't ship to production. The API image contains only the compiled JS bundle.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Vite, TailwindCSS, shadcn/ui |
+| Backend | Node.js 24, Express 5, TypeScript |
+| Database | PostgreSQL 16, Drizzle ORM |
+| Auth | JWT + bcrypt |
+| Logging | pino (JSON in prod, pretty in dev) |
+| CI/CD | GitHub Actions |
+| Containers | Docker + docker-compose + Nginx |
+| Package mgr | pnpm workspaces (monorepo) |
