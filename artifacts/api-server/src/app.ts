@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { AppError } from "./lib/errors";
 
 const app: Express = express();
 
@@ -45,5 +46,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// 404 — route not found
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// Global error handler — catches any error passed to next(err)
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err instanceof AppError ? err.statusCode : 500;
+  const message =
+    err instanceof Error ? err.message : "Internal server error";
+
+  if (status === 500) {
+    logger.error({ err }, "Unhandled error");
+  }
+
+  res.status(status).json({ error: message });
+});
 
 export default app;
