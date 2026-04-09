@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Technician Dispatch & Service Tracking System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User management
+  - name: service-requests
+    description: Service request operations
+  - name: technicians
+    description: Technician operations
+  - name: dashboard
+    description: Dashboard and summary operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +34,334 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login and receive JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /service-requests:
+    get:
+      operationId: listServiceRequests
+      tags: [service-requests]
+      summary: List service requests (filtered by role)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, assigned, in_progress, completed, cancelled]
+        - name: technicianId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of service requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceRequest"
+
+    post:
+      operationId: createServiceRequest
+      tags: [service-requests]
+      summary: Create a new service request (customer only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceRequestBody"
+      responses:
+        "201":
+          description: Service request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+  /service-requests/{id}:
+    get:
+      operationId: getServiceRequest
+      tags: [service-requests]
+      summary: Get a single service request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+    patch:
+      operationId: updateServiceRequest
+      tags: [service-requests]
+      summary: Update service request (status, notes, technician)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateServiceRequestBody"
+      responses:
+        "200":
+          description: Updated service request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+  /service-requests/{id}/assign:
+    post:
+      operationId: assignTechnician
+      tags: [service-requests]
+      summary: Assign a technician to a service request (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignTechnicianBody"
+      responses:
+        "200":
+          description: Technician assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [customer, technician, admin]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /technicians:
+    get:
+      operationId: listTechnicians
+      tags: [technicians]
+      summary: List all technicians
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of technicians
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TechnicianProfile"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary counts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent service request activity
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceRequest"
+
+  /dashboard/status-breakdown:
+    get:
+      operationId: getStatusBreakdown
+      tags: [dashboard]
+      summary: Get service request counts by status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Status breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusBreakdown"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +371,268 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    RegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [customer, technician]
+          default: customer
+      required:
+        - name
+        - email
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [customer, technician, admin]
+        phone:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - role
+        - isActive
+        - createdAt
+
+    UpdateUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        isActive:
+          type: boolean
+
+    TechnicianProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        isActive:
+          type: boolean
+        totalJobs:
+          type: integer
+        activeJobs:
+          type: integer
+      required:
+        - id
+        - name
+        - email
+        - isActive
+        - totalJobs
+        - activeJobs
+
+    ServiceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        serviceType:
+          type: string
+          enum: [installation, repair, maintenance, amc_service, inspection]
+        status:
+          type: string
+          enum: [pending, assigned, in_progress, completed, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        customerId:
+          type: integer
+        technicianId:
+          type: integer
+          nullable: true
+        customerName:
+          type: string
+        technicianName:
+          type: string
+          nullable: true
+        address:
+          type: string
+        technicianNotes:
+          type: string
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - description
+        - serviceType
+        - status
+        - priority
+        - customerId
+        - customerName
+        - address
+        - createdAt
+        - updatedAt
+
+    CreateServiceRequestBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        serviceType:
+          type: string
+          enum: [installation, repair, maintenance, amc_service, inspection]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        address:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+      required:
+        - title
+        - description
+        - serviceType
+        - address
+
+    UpdateServiceRequestBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, assigned, in_progress, completed, cancelled]
+        technicianNotes:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+
+    AssignTechnicianBody:
+      type: object
+      properties:
+        technicianId:
+          type: integer
+      required:
+        - technicianId
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+        pendingRequests:
+          type: integer
+        inProgressRequests:
+          type: integer
+        completedRequests:
+          type: integer
+        totalTechnicians:
+          type: integer
+        totalCustomers:
+          type: integer
+        activeTechnicians:
+          type: integer
+      required:
+        - totalRequests
+        - pendingRequests
+        - inProgressRequests
+        - completedRequests
+        - totalTechnicians
+        - totalCustomers
+        - activeTechnicians
+
+    StatusBreakdown:
+      type: object
+      properties:
+        pending:
+          type: integer
+        assigned:
+          type: integer
+        in_progress:
+          type: integer
+        completed:
+          type: integer
+        cancelled:
+          type: integer
+      required:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - cancelled
