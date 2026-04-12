@@ -2,8 +2,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/lib/schemas";
 import { z } from "zod";
-import { useLogin } from "@workspace/api-client-react";
-import { useAuth } from "@/lib/auth";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,30 +9,29 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function Login() {
-  const { login } = useAuth();
   const [, setLocation] = useLocation();
-  const { mutate, isPending } = useLogin();
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  function onSubmit(values: z.infer<typeof loginSchema>) {
-    mutate({ data: values }, {
-      onSuccess: (res) => {
-        login(res.token, res.user);
-        toast.success("Logged in successfully");
-        if (res.user.role === "admin") setLocation("/admin");
-        else if (res.user.role === "technician") setLocation("/technician");
-        else setLocation("/customer");
-      },
-      onError: (err) => {
-        toast.error(err.data?.message || "Failed to login");
-      }
+  async function onSubmit(values: z.infer<typeof loginSchema>) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: values.email,
+      password: values.password,
     });
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Logged in successfully");
+    setLocation("/customer");
   }
 
   return (
@@ -78,8 +75,11 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6" disabled={isPending}>
-                {isPending ? "Signing in..." : "Sign In"}
+              <Button
+                type="submit"
+                className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6"
+              >
+                Sign In
               </Button>
             </form>
           </Form>
