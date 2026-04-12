@@ -2,9 +2,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "@/lib/schemas";
 import { z } from "zod";
-// ❌ REMOVE THIS
-// import { useRegister } from "@workspace/api-client-react";
-
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,26 +10,31 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Activity } from "lucide-react";
 import { toast } from "sonner";
-
-// ✅ ADD THIS
 import { supabase } from "@/lib/supabase";
 
 export default function Register() {
   const [, setLocation] = useLocation();
-  // ❌ REMOVE THIS
-  // const { mutate, isPending } = useRegister();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: { name: "", email: "", password: "", phone: "", role: "customer" },
   });
 
-  // ✅ REPLACE FUNCTION
   async function onSubmit(values: z.infer<typeof registerSchema>) {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
+      options: {
+        data: {
+          full_name: values.name,
+          phone: values.phone,
+          role: values.role,
+        },
+      },
     });
+
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
 
     if (error) {
       toast.error(error.message);
@@ -67,7 +69,7 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="John Doe" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -81,7 +83,7 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="you@company.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -95,7 +97,7 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -109,7 +111,7 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="+1 234 567 8900" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -125,7 +127,7 @@ export default function Register() {
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -138,7 +140,7 @@ export default function Register() {
                 )}
               />
 
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6">
                 Register
               </Button>
 
@@ -146,9 +148,9 @@ export default function Register() {
           </Form>
         </CardContent>
 
-        <CardFooter className="flex justify-center">
-          <p>
-            Already have an account? <Link href="/login">Sign in</Link>
+        <CardFooter className="flex justify-center border-t border-slate-100 pt-6">
+          <p className="text-sm text-slate-500">
+            Already have an account? <Link href="/login" className="text-teal-700 font-semibold hover:underline">Sign in</Link>
           </p>
         </CardFooter>
       </Card>
