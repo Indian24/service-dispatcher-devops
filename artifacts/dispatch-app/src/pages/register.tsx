@@ -2,7 +2,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "@/lib/schemas";
 import { z } from "zod";
-import { useRegister } from "@workspace/api-client-react";
+// ❌ REMOVE THIS
+// import { useRegister } from "@workspace/api-client-react";
+
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,25 +14,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Activity } from "lucide-react";
 import { toast } from "sonner";
 
+// ✅ ADD THIS
+import { supabase } from "@/lib/supabase";
+
 export default function Register() {
   const [, setLocation] = useLocation();
-  const { mutate, isPending } = useRegister();
+  // ❌ REMOVE THIS
+  // const { mutate, isPending } = useRegister();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: { name: "", email: "", password: "", phone: "", role: "customer" },
   });
 
-  function onSubmit(values: z.infer<typeof registerSchema>) {
-    mutate({ data: values }, {
-      onSuccess: () => {
-        toast.success("Account created successfully. Please login.");
-        setLocation("/login");
-      },
-      onError: (err) => {
-        toast.error(err.data?.message || "Failed to register");
-      }
+  // ✅ REPLACE FUNCTION
+  async function onSubmit(values: z.infer<typeof registerSchema>) {
+    const { error } = await supabase.auth.signUp({
+      email: values.email,
+      password: values.password,
     });
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Account created successfully. Please login.");
+    setLocation("/login");
   }
 
   return (
@@ -45,71 +55,77 @@ export default function Register() {
           <CardTitle className="text-2xl font-bold text-slate-900">Create an Account</CardTitle>
           <CardDescription className="text-slate-500">Join the dispatch system to get started</CardDescription>
         </CardHeader>
+
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700">Full Name</FormLabel>
+                    <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} className="bg-white" />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700">Email Address</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="you@company.com" {...field} className="bg-white" />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700">Password</FormLabel>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="bg-white" />
+                      <Input type="password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700">Phone (Optional)</FormLabel>
+                    <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input placeholder="+1 (555) 000-0000" {...field} className="bg-white" />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-700">Role</FormLabel>
+                    <FormLabel>Role</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="bg-white">
-                          <SelectValue placeholder="Select a role" />
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -121,15 +137,18 @@ export default function Register() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6" disabled={isPending}>
-                {isPending ? "Creating account..." : "Register"}
+
+              <Button type="submit" className="w-full">
+                Register
               </Button>
+
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t border-slate-100 pt-6">
-          <p className="text-sm text-slate-500">
-            Already have an account? <Link href="/login" className="text-teal-700 font-semibold hover:underline">Sign in</Link>
+
+        <CardFooter className="flex justify-center">
+          <p>
+            Already have an account? <Link href="/login">Sign in</Link>
           </p>
         </CardFooter>
       </Card>
