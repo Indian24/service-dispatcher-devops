@@ -46,23 +46,30 @@ export default function NewRequest() {
     },
   });
 
-  // 🔥 THIS IS THE MAIN CHANGE (Supabase Insert)
   async function onSubmit(values: z.infer<typeof createServiceRequestSchema>) {
-    const { error } = await supabase.from("service_requests").insert([
-      {
-        title: values.title,
-        description: values.description,
-        status: "pending",
-      },
-    ]);
+    const { data, error } = await supabase
+      .from("service_requests")
+      .insert([
+        {
+          title: values.title,
+          description: values.description,
+          service_type: values.serviceType,
+          priority: values.priority,
+          address: values.address,
+          scheduled_at: values.scheduledAt,
+        },
+      ]);
+
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
 
     if (error) {
-      console.error(error);
-      toast.error("Failed to save request ❌");
-    } else {
-      toast.success("Request submitted successfully ✅");
-      setLocation("/customer");
+      toast.error(error.message);
+      return;
     }
+
+    toast.success("Request created successfully");
+    setLocation("/customer/dashboard");
   }
 
   return (
