@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/lib/schemas";
@@ -13,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [isPending, setIsPending] = useState(false);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -20,18 +22,35 @@ export default function Login() {
   });
 
   async function onSubmit(values: z.infer<typeof loginSchema>) {
-    const { error } = await supabase.auth.signInWithPassword({
+    setIsPending(true);
+    
+    // 1. Authenticate with Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: values.email,
       password: values.password,
     });
 
+    setIsPending(false);
+
+    // 2. Handle Errors
     if (error) {
       toast.error(error.message);
       return;
     }
 
     toast.success("Logged in successfully");
-    setLocation("/customer");
+
+    // 3. Get the user's role from Supabase metadata (saved during registration)
+    const role = data.user?.user_metadata?.role;
+
+    // 4. Redirect based on their role
+    if (role === "admin") {
+      setLocation("/admin");
+    } else if (role === "technician") {
+      setLocation("/technician");
+    } else {
+      setLocation("/customer"); // Default to customer dashboard
+    }
   }
 
   return (
@@ -75,11 +94,12 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button
-                type="submit"
-                className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6"
+              <Button 
+                type="submit" 
+                className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6" 
+                disabled={isPending}
               >
-                Sign In
+                {isPending ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </Form>

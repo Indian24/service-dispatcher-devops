@@ -1,7 +1,15 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { setAuthTokenGetter, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
-import type { User } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+
+// Minimal local User shape used by the UI. Keep fields used across the app (`role`, `email`, `name`, `id`).
+export type User = {
+  id: string;
+  email: string | null;
+  role: string;
+  name?: string | null;
+  phone?: string | null;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -14,43 +22,73 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("dispatch_token"));
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
 
+  // Initialize session on mount and listen for auth changes from Supabase
   useEffect(() => {
-    setAuthTokenGetter(() => token);
-  }, [token]);
+    let mounted = true;
 
-  const { data: me, isLoading: isLoadingMe, isError } = useGetMe({
-    query: {
-      queryKey: getGetMeQueryKey(),
-      enabled: !!token,
-      retry: false,
-    }
-  });
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
 
-  useEffect(() => {
-    if (me) {
-      setUser(me);
+      if (!mounted) return;
+
+      if (session) {
+        const u = session.user;
+        setToken(session.access_token ?? null);
+        setUser({
+          id: u.id,
+          email: u.email,
+          role: (u.user_metadata as any)?.role ?? "customer",
+          name: (u.user_metadata as any)?.full_name ?? null,
+          phone: (u.user_metadata as any)?.phone ?? null,
+        });
+      } else {
+        setToken(null);
+        setUser(null);
+      }
+
       setIsLoading(false);
-    } else if (isError || (!token && !isLoadingMe)) {
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem("dispatch_token");
-      setIsLoading(false);
     }
-  }, [me, isError, token, isLoadingMe]);
 
-  const login = (newToken: string, newUser: User) => {
-    localStorage.setItem("dispatch_token", newToken);
-    setToken(newToken);
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        const u = session.user;
+        setToken(session.access_token ?? null);
+        setUser({
+          id: u.id,
+          email: u.email,
+          role: (u.user_metadata as any)?.role ?? "customer",
+          name: (u.user_metadata as any)?.full_name ?? null,
+          phone: (u.user_metadata as any)?.phone ?? null,
+        });
+      } else {
+        setToken(null);
+        setUser(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Keep a compatible login/logout API for code that may call these directly
+  const login = (_newToken: string, newUser: User) => {
+    // When using Supabase we don't persist a custom token here; keep state in-sync
+    setToken(_newToken ?? null);
     setUser(newUser);
   };
 
-  const logout = () => {
-    localStorage.removeItem("dispatch_token");
+  const logout = async () => {
+    await supabase.auth.signOut();
     setToken(null);
     setUser(null);
     queryClient.clear();
