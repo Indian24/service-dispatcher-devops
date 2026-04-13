@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "@/lib/schemas";
@@ -14,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function Register() {
   const [, setLocation] = useLocation();
+  const [isPending, setIsPending] = useState(false);
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -21,6 +23,8 @@ export default function Register() {
   });
 
   async function onSubmit(values: z.infer<typeof registerSchema>) {
+    setIsPending(true);
+    
     const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
@@ -33,8 +37,7 @@ export default function Register() {
       },
     });
 
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
+    setIsPending(false);
 
     if (error) {
       toast.error(error.message);
@@ -57,76 +60,70 @@ export default function Register() {
           <CardTitle className="text-2xl font-bold text-slate-900">Create an Account</CardTitle>
           <CardDescription className="text-slate-500">Join the dispatch system to get started</CardDescription>
         </CardHeader>
-
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full Name</FormLabel>
+                    <FormLabel className="text-slate-700">Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="John Doe" {...field} />
+                      <Input placeholder="John Doe" {...field} className="bg-white" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="text-slate-700">Email Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="you@company.com" {...field} />
+                      <Input placeholder="you@company.com" {...field} className="bg-white" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="text-slate-700">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input type="password" placeholder="••••••••" {...field} className="bg-white" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone</FormLabel>
+                    <FormLabel className="text-slate-700">Phone (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="+1 234 567 8900" {...field} />
+                      <Input placeholder="+1 (555) 000-0000" {...field} className="bg-white" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Role</FormLabel>
+                    <FormLabel className="text-slate-700">Role</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                       </FormControl>
@@ -139,15 +136,12 @@ export default function Register() {
                   </FormItem>
                 )}
               />
-
-              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6">
-                Register
+              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 text-white mt-6" disabled={isPending}>
+                {isPending ? "Creating account..." : "Register"}
               </Button>
-
             </form>
           </Form>
         </CardContent>
-
         <CardFooter className="flex justify-center border-t border-slate-100 pt-6">
           <p className="text-sm text-slate-500">
             Already have an account? <Link href="/login" className="text-teal-700 font-semibold hover:underline">Sign in</Link>
